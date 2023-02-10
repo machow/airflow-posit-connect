@@ -1,3 +1,13 @@
+# Project specific =======
+airflow_variables.json
+rsconnect_keys.json
+
+# Vim =====
+
+.*.sw[nop]
+
+# Python =================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

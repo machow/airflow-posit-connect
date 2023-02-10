@@ -1,0 +1,9 @@
+---
+operator: airflow_connect.connect_operator.ConnectOperator
+output:
+  html_document
+---
+
+```{r}
+print(Sys.getenv()["AIRFLOW__CORE__SQL_ALCHEMY_CONN"])
+```

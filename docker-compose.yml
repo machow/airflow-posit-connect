@@ -1,0 +1,81 @@
+version: '3.3'
+services:
+    postgres:
+        image: postgres:13.1
+        environment:
+            - POSTGRES_USER=gusty
+            - POSTGRES_PASSWORD=demo
+            - POSTGRES_DB=airflow
+    airflow: &airflow_build
+        build:
+            context: example
+        environment: &airflow_env
+          - AIRFLOW__CORE__EXECUTE_TASKS_NEW_PYTHON_INTERPRETER=True
+          - AIRFLOW__CORE__LAZY_LOAD_PLUGINS=False
+          - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+          - AIRFLOW__WEBSERVER__RELOAD_ON_PLUGIN_CHANGE=True
+          - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql://gusty:demo@postgres:5432/airflow
+          - AIRFLOW__CORE__FERNET_KEY='_N_5nRl4ohC4UIU8Z2diLijUl0T-aySs34XL4s5yrOs='
+          - AIRFLOW__WEBSERVER__SECRET_KEY='n-BqqnR9cd4luIGn3iBntRvXL1b8m3QdDzv1c65AdiY='
+            #- AIRFLOW_VAR_CONNECT_API_KEY=${CONNECT_API_KEY}
+            #- AIRFLOW_VAR_CONNECT_SERVER=${CONNECT_SERVER}
+        command: >
+            /bin/bash -c "
+                cd /usr/local/airflow
+                # Wait for PG
+                sleep 5
+
+                # Clean up pid
+                rm -f airflow-webserver.pid
+
+                # Set up metadata database
+                airflow db upgrade
+
+                # Create default user
+                airflow users create \
+                  --username gusty \
+                  --password demo \
+                  --email gusty@gusty.com \
+                  --firstname Gusty \
+                  --lastname User \
+                  --role Admin
+
+                # Start airflow
+                airflow scheduler &
+            	  airflow webserver
+
+                # Keep the server on no matter what
+                sleep infinity
+            "
+        restart: always
+        depends_on:
+            - postgres
+        volumes:
+            - ${PWD}/example/airflow:/usr/local/airflow
+            - ${PWD}/airflow_connect:/usr/local/airflow/plugins/airflow_connect
+        ports:
+            - "9080:8080"
+    jupyterlab:
+        <<: *airflow_build
+        ports:
+            - "9081:9081"
+        command: >
+          /bin/bash -c "
+              jupyter lab --port 9081 --LabApp.token=''
+          "
+        volumes:
+          - ${PWD}/example/airflow:/home/jovyan/airflow
+
+    rsconnect:
+        image: rstudio/rstudio-connect:jammy-2023.01.0
+        restart: always
+        ports:
+            - 9082:3939
+        volumes:
+            - $PWD/script/setup-rsconnect/users.txt:/etc/users.txt
+            - $PWD/script/setup-rsconnect/rstudio-connect.gcfg:/etc/rstudio-connect/rstudio-connect.gcfg
+        privileged: true
+        environment:
+            RSTUDIO_CONNECT_HASTE: "enabled"
+            RSC_LICENSE: ${RSC_LICENSE}
+

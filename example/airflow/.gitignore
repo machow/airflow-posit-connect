@@ -1,0 +1,6 @@
+# Ignore logs folder
+logs
+logs/*
+
+# Ignore webserver pid
+airflow-webserver.pid
