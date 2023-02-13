@@ -1,6 +1,9 @@
 .PHONY: airflow_variables.json
 
-rsconnect_keys.json:
+dev-start:
+	docker-compose up -d
+
+rsconnect_keys.json: dev-start
 	docker-compose exec -T rsconnect bash < script/setup-rsconnect/add-users.sh
 	sleep 5
 	curl -s --retry 10 --retry-connrefused http://localhost:9082
