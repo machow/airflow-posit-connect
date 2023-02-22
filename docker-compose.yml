@@ -8,7 +8,7 @@ services:
             - POSTGRES_DB=airflow
     airflow: &airflow_build
         build:
-            context: example
+            context: .
         environment: &airflow_env
           - AIRFLOW__CORE__EXECUTE_TASKS_NEW_PYTHON_INTERPRETER=True
           - AIRFLOW__CORE__LAZY_LOAD_PLUGINS=False
