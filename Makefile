@@ -3,9 +3,9 @@
 dev-start:
 	docker-compose up -d
 
-rsconnect_keys.json: dev-start
+airflow_connect/tests/rsconnect_keys.json: dev-start
 	docker-compose exec -T rsconnect bash < script/setup-rsconnect/add-users.sh
-	sleep 5
+	sleep 7
 	curl -s --retry 10 --retry-connrefused http://localhost:9082
 	python script/setup-rsconnect/dump_api_keys.py http://localhost:9082 $@
 

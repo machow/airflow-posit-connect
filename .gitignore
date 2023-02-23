@@ -1,3 +1,13 @@
+.DS_Store
+Untitled.ipynb
+
+# The section where we ignore R things we might not normally ==================
+.Rprofile
+renv
+renv.lock
+*.Rproj
+
+
 # Project specific =======
 airflow_variables.json
 rsconnect_keys.json
@@ -137,3 +147,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.Rproj.user

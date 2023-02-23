@@ -1,5 +1,4 @@
 [Server]
-DataDir = /data
 Address = http://localhost:3939
 
 [HTTP]

@@ -1,0 +1,9 @@
+---
+operator: airflow_connect.connect_operator.ConnectOperator
+output:
+  html_document
+---
+
+```{r}
+print(1 + 1)
+```

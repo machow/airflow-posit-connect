@@ -33,9 +33,11 @@ class ConnectOperator(BaseOperator):
     def __init__(
         self,
         file_path,
+        requirements_path = None,
         **kwargs
     ):
         self.file_path = file_path
+        self.requirements_path = requirements_path
         super().__init__(**kwargs)
 
     def execute(self, context):
@@ -50,4 +52,4 @@ class ConnectOperator(BaseOperator):
                 api_key=connect_api_key,
             )
 
-            api.trigger_deploy_or_rerun(fs, self.file_path)
+            api.trigger_deploy_or_rerun(fs, self.file_path, requirements_path = requirements_path)

@@ -5,6 +5,9 @@ import time
 import tempfile
 import tarfile
 import subprocess
+import shutil
+import difflib
+import json
 
 from pins.rsconnect.api import RsConnectApiMissingContentError
 
@@ -17,6 +20,37 @@ from requests.models import StreamConsumedError
 import logging
 
 _log = logging.getLogger(__name__)
+
+
+def is_rmd(fname):
+    str_fname = str(fname)
+    return str_fname.endswith("Rmd") or str_fname.endswith("Rmarkdown")
+
+
+def exec_cli(cli_args):
+    from rsconnect.main import cli
+    try:
+        cli(cli_args)
+    except SystemExit as e:
+        if e.args[0] != 0:
+            raise Exception(f"System exited with code: {e}")
+
+
+def hack_manifest(manifest: dict, notebook_path: str):
+    new_data = {**manifest}
+
+    notebook_hash = hashlib.md5(open(notebook_path, "rb").read()).hexdigest()
+    notebook_name = str(Path(notebook_path).name)
+
+    rmd_fname = next(fname for fname in new_data["files"] if is_rmd(fname))
+    new_files = {
+        notebook_name: { "checksum": notebook_hash }
+    }
+
+    new_data["files"] = new_files
+    new_data["metadata"]["primary_rmd"] = notebook_name
+
+    return new_data
 
 
 def stream(r, api):
@@ -97,8 +131,10 @@ def is_rerenderable(fs, notebook_path, content, debug=True):
         _log.info("Cannot render: source content contains changes")
         if debug:
             _log.debug("Logging diff")
-            for li in difflib.ndiff(src_content, dst_content):
-                _log.debug(li)
+            _log.debug("\n".join(difflib.unified_diff(
+                src_content.decode().splitlines(),
+                dst_content.decode().splitlines()
+            )))
 
         return False
 
@@ -128,25 +164,45 @@ def trigger_rerun(fs, content):
     return task, job
 
 
-def trigger_deploy(notebook_path, new=False, use_tempdir=False):
-    from rsconnect.main import cli
+def trigger_deploy(notebook_path, new=False, use_tempdir=True, requirements_path: "str | None" = None, fs = None):
 
     # Case 1: deploying from a temporary directory ============================
     # in this case, we copy to tempdir, and then recurse.
     if use_tempdir:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            dst_fname = shutil.copy(self.file_path, tmp_dir)
+            dst_fname = shutil.copy(notebook_path, tmp_dir)
+            if requirements_path:
+                dst_requirements_path = shutil.copy(requirements_path, tmp_dir)
+            else:
+                dst_requirements_path = None
 
-            return trigger_deploy(dst_fname, new=new, use_tempdir=False)
+            return trigger_deploy(
+                    dst_fname,
+                    new=new,
+                    use_tempdir=False,
+                    requirements_path = dst_requirements_path,
+                    fs = fs
+            )
 
 
     # Case 2: deploying from non-temp dir =====================================
+    # This is not ideal, since rsconnect does not let you specify the name of 
+    # manifest.json, so we may need to create a file with exactly that name in
+    # your directory
 
     notebook_path = Path(notebook_path)
 
     new_arg = ["--new"] if new else []
 
-    if notebook_path.name.endswith(".Rmd") or notebook_path.name.endswith(".Rmarkdown"):
+    creds = []
+
+    if fs is not None:
+        if fs.api.server_url:
+            creds += ["-s", fs.api.server_url]
+        if fs.api.api_key:
+            creds += ["-k", fs.api.api_key]
+
+    if is_rmd(notebook_path) and not requirements_path:
         _log.info("Running the R rsconnect package to create Rmarkdown manifest.")
         # TODO: note that dir_path is injected into an R script, which could
         # technically be exploited to execute arbitrary R code.
@@ -157,18 +213,27 @@ def trigger_deploy(notebook_path, new=False, use_tempdir=False):
         ])
 
         p_manifest = notebook_path.parent / "manifest.json"
-        cli_args = ["deploy", "manifest", *new_arg, str(p_manifest)]
+        cli_args = ["deploy", "manifest", *creds, *new_arg, str(p_manifest)]
+        exec_cli(cli_args)
+
+    elif is_rmd(notebook_path) and requirements_path:
+        old_manifest = json.load(open(requirements_path))
+        new_manifest = hack_manifest(old_manifest, notebook_path)
+
+        p_manifest = Path(notebook_path).parent / "manifest.json"
+        with open(p_manifest, "w") as f:
+            json.dump(new_manifest, f)
+
+        cli_args = ["deploy", "manifest", *creds, *new_arg, str(p_manifest)]
+        exec_cli(cli_args)
+
     else:
-        cli_args = ["deploy", "notebook", *new_arg, str(notebook_path)]
-
-    try:
-        cli(cli_args)
-    except SystemExit as e:
-        if e.args[0] != 0:
-            raise Exception(f"System exited with code: {e}")
+        requirements = [str(requirements_path)] if requirements_path else []
+        cli_args = ["deploy", "notebook", str(notebook_path), *requirements, *creds, *new_arg]
+        exec_cli(cli_args)
 
 
-def trigger_deploy_or_rerun(fs, notebook_path, user_name = "admin"):
+def trigger_deploy_or_rerun(fs, notebook_path, user_name = "admin", requirements_path: "str | None" = None):
     notebook_path = Path(notebook_path).absolute()
     notebook_name = notebook_path.name.rsplit(".")[0]
     content_name = f"{user_name}/{notebook_name}"
@@ -177,12 +242,18 @@ def trigger_deploy_or_rerun(fs, notebook_path, user_name = "admin"):
 
     if content is None:
         print("Deploying new ----")
-        trigger_deploy(notebook_path, new = True)
+        trigger_deploy(notebook_path, new = True, requirements_path=requirements_path, fs = fs)
+
+        return {"action": "new-deploy"}
 
     elif is_rerenderable(fs, notebook_path, content):
         print("Rerunning ----")
         trigger_rerun(fs, content)
 
+        return {"action": "re-render"}
+
     else:
         print("Re-deploying ----")
-        trigger_deploy(notebook_path, new = False)
+        trigger_deploy(notebook_path, new = False, requirements_path=requirements_path, fs = fs)
+
+        return {"action": "re-deploy"}

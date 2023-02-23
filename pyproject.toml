@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["airflow_connect"]
+namespaces = true
+
+[project]
+name = "airflow-connect"
+authors = [
+  {name = "Michael Chow", email = "mc_al_github@fastmail.com"}
+]
+description = ""
+requires-python = ">=3.8"
+dependencies = [
+  "pendulum",
+  "requests",
+  "pins @ git+https://github.com/rstudio/pins-python.git@feat-rsc-api#egg=pins",
+]
+version = "0.0.1"
+
+[project.optional-dependencies]
+test = [
+  "pytest"
+]
+
+[project.scripts]
+airflow_connect = "airflow_connect.cli:main"
