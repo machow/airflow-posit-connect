@@ -36,7 +36,8 @@ jobs:
   release:
     name: "Release to github pages"
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    # just release all the time
+    #if: github.event_name == 'release'
     needs: [tests]
     steps:
       - uses: actions/checkout@v2
