@@ -25,7 +25,8 @@ jobs:
       - name: run RStudio Connect
         run: |
           make dev
-        RSC_LICENSE: ${{ secrets.RSC_LICENSE }}
+        env:
+          RSC_LICENSE: ${{ secrets.RSC_LICENSE }}
 
       - name: Run tests
         shell: bash
