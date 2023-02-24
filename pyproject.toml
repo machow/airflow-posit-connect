@@ -16,6 +16,7 @@ requires-python = ">=3.8"
 dependencies = [
   "pendulum",
   "requests",
+  "rsconnect-python",
   "pins @ git+https://github.com/rstudio/pins-python.git@feat-rsc-api#egg=pins",
 ]
 version = "0.0.1"
