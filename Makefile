@@ -1,5 +1,7 @@
 .PHONY: airflow_variables.json
 
+dev: airflow_connect/tests/rsconnect_keys.json
+
 dev-start:
 	docker-compose up -d
 
