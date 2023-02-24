@@ -164,7 +164,14 @@ def trigger_rerun(fs, content):
     return task, job
 
 
-def trigger_deploy(notebook_path, new=False, use_tempdir=True, requirements_path: "str | None" = None, fs = None):
+def trigger_deploy(
+    notebook_path,
+    new=False,
+    use_tempdir=True,
+    requirements_path: "str | None" = None,
+    fs = None,
+    environment: "dict[str,str] | None" = None
+):
 
     # Case 1: deploying from a temporary directory ============================
     # in this case, we copy to tempdir, and then recurse.
@@ -181,7 +188,8 @@ def trigger_deploy(notebook_path, new=False, use_tempdir=True, requirements_path
                     new=new,
                     use_tempdir=False,
                     requirements_path = dst_requirements_path,
-                    fs = fs
+                    fs = fs,
+                    environment=environment
             )
 
 
@@ -195,12 +203,16 @@ def trigger_deploy(notebook_path, new=False, use_tempdir=True, requirements_path
     new_arg = ["--new"] if new else []
 
     creds = []
+    env_vars = []
 
     if fs is not None:
         if fs.api.server_url:
             creds += ["-s", fs.api.server_url]
         if fs.api.api_key:
             creds += ["-k", fs.api.api_key]
+
+    for k, v in environment.items():
+        env_vars.extend(["-E", f"{k}={v}"])
 
     if is_rmd(notebook_path) and not requirements_path:
         _log.info("Running the R rsconnect package to create Rmarkdown manifest.")
@@ -224,16 +236,22 @@ def trigger_deploy(notebook_path, new=False, use_tempdir=True, requirements_path
         with open(p_manifest, "w") as f:
             json.dump(new_manifest, f)
 
-        cli_args = ["deploy", "manifest", *creds, *new_arg, str(p_manifest)]
+        cli_args = ["deploy", "manifest", *creds, *new_arg, str(p_manifest), *env_vars]
         exec_cli(cli_args)
 
     else:
         requirements = [str(requirements_path)] if requirements_path else []
-        cli_args = ["deploy", "notebook", str(notebook_path), *requirements, *creds, *new_arg]
+        cli_args = ["deploy", "notebook", str(notebook_path), *requirements, *creds, *new_arg, *env_vars]
         exec_cli(cli_args)
 
 
-def trigger_deploy_or_rerun(fs, notebook_path, user_name = "admin", requirements_path: "str | None" = None):
+def trigger_deploy_or_rerun(
+    fs,
+    notebook_path,
+    user_name = "admin",
+    requirements_path: "str | None" = None,
+    environment: "dict | None" = None
+):
     notebook_path = Path(notebook_path).absolute()
     notebook_name = notebook_path.name.rsplit(".")[0]
     content_name = f"{user_name}/{notebook_name}"
@@ -242,18 +260,31 @@ def trigger_deploy_or_rerun(fs, notebook_path, user_name = "admin", requirements
 
     if content is None:
         print("Deploying new ----")
-        trigger_deploy(notebook_path, new = True, requirements_path=requirements_path, fs = fs)
+        trigger_deploy(
+            notebook_path,
+            new = True,
+            requirements_path=requirements_path,
+            fs = fs,
+            environment = environment
+        )
 
         return {"action": "new-deploy"}
 
     elif is_rerenderable(fs, notebook_path, content):
         print("Rerunning ----")
+        # TODO: probably need a way to set env vars before re-render?
         trigger_rerun(fs, content)
 
         return {"action": "re-render"}
 
     else:
         print("Re-deploying ----")
-        trigger_deploy(notebook_path, new = False, requirements_path=requirements_path, fs = fs)
+        trigger_deploy(
+            notebook_path,
+            new = False,
+            requirements_path=requirements_path,
+            fs = fs,
+            environment = environment
+        )
 
         return {"action": "re-deploy"}
