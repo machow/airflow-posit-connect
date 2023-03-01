@@ -34,10 +34,12 @@ class ConnectOperator(BaseOperator):
         self,
         file_path,
         requirements_path = None,
+        environment = None,
         **kwargs
     ):
         self.file_path = file_path
         self.requirements_path = requirements_path
+        self.environment = environment or {}
         super().__init__(**kwargs)
 
     def execute(self, context):
@@ -52,4 +54,9 @@ class ConnectOperator(BaseOperator):
                 api_key=connect_api_key,
             )
 
-            api.trigger_deploy_or_rerun(fs, self.file_path, requirements_path = requirements_path)
+            api.trigger_deploy_or_rerun(
+                fs,
+                self.file_path,
+                requirements_path = self.requirements_path,
+                environment = self.environment
+            )

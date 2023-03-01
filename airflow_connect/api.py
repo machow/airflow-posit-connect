@@ -166,7 +166,7 @@ def trigger_rerun(fs, content):
 
 def trigger_deploy(
     notebook_path,
-    new=False,
+    app_id=None,
     use_tempdir=True,
     requirements_path: "str | None" = None,
     fs = None,
@@ -185,7 +185,7 @@ def trigger_deploy(
 
             return trigger_deploy(
                     dst_fname,
-                    new=new,
+                    app_id=app_id,
                     use_tempdir=False,
                     requirements_path = dst_requirements_path,
                     fs = fs,
@@ -200,7 +200,7 @@ def trigger_deploy(
 
     notebook_path = Path(notebook_path)
 
-    new_arg = ["--new"] if new else []
+    new_arg = ["--new"] if app_id is None else ["--app-id", app_id]
 
     creds = []
     env_vars = []
@@ -262,7 +262,7 @@ def trigger_deploy_or_rerun(
         print("Deploying new ----")
         trigger_deploy(
             notebook_path,
-            new = True,
+            app_id = None,
             requirements_path=requirements_path,
             fs = fs,
             environment = environment
@@ -281,7 +281,7 @@ def trigger_deploy_or_rerun(
         print("Re-deploying ----")
         trigger_deploy(
             notebook_path,
-            new = False,
+            app_id = content["guid"],
             requirements_path=requirements_path,
             fs = fs,
             environment = environment

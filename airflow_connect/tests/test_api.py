@@ -57,3 +57,8 @@ def test_deploy_or_rerun(fs, notebook, req):
         res = f_trigger(p_tmp_nb)
 
         assert res["action"] == "re-deploy"
+
+    # rough test that new notebooks weren't created on accident
+    notebook_name = Path(notebook).with_suffix("").name
+    all_notebooks = fs.ls("admin")
+    assert f"{notebook_name}1" not in all_notebooks
