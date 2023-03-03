@@ -22,6 +22,9 @@ import logging
 _log = logging.getLogger(__name__)
 
 
+class ConnectDeployError(Exception): pass
+
+
 def is_rmd(fname):
     str_fname = str(fname)
     return str_fname.endswith("Rmd") or str_fname.endswith("Rmarkdown")
@@ -33,7 +36,7 @@ def exec_cli(cli_args):
         cli(cli_args)
     except SystemExit as e:
         if e.args[0] != 0:
-            raise Exception(f"System exited with code: {e}")
+            raise ConnectDeployError(f"System exited with code: {e}")
 
 
 def hack_manifest(manifest: dict, notebook_path: str):
@@ -142,7 +145,7 @@ def is_rerenderable(fs, notebook_path, content, debug=True):
 
 
 
-def trigger_rerun(fs, content):
+def trigger_rerun(fs, content, environment = None):
     # TODO: clean up variable
     info = content
 
@@ -151,17 +154,32 @@ def trigger_rerun(fs, content):
     variant_id = variants[0]["id"]
     now = pendulum.now("UTC").at(hour=None, minute=None, second=None)
     print("NOW:", now)
+
+    # update environment and re-render ----
+    if environment is not None:
+        _log.info("Updating environment variables")
+        fs.api.put_content_item_environment(info["guid"], environment)
+
+    _log.info("Triggering render")
     task = fs.api.post_variant_render(variant_id)
 
     job = fetch_pending_job(fs.api, info, since=now)
 
+    _log.debug("Tracking job: {job}")
+
+    # stream log ----
     log = fs.api.get_content_item_jobs_item_tail(info["guid"], job["key"])
     stream(log, fs.api)
 
-    # TODO: also need to check job exit status
+    # verify job succeeded ----
+    job_result = fs.api.get_content_item_jobs_item(info["guid"], job["key"])
+
+    if job_result["exit_code"] != 0:
+        raise ConnectDeployError("Job failed: {job_result}")
+
     #task_result = fs.api.wait_for_task(task["id"])
 
-    return task, job
+    return task, job_result
 
 
 def trigger_deploy(
@@ -273,7 +291,7 @@ def trigger_deploy_or_rerun(
     elif is_rerenderable(fs, notebook_path, content):
         print("Rerunning ----")
         # TODO: probably need a way to set env vars before re-render?
-        trigger_rerun(fs, content)
+        trigger_rerun(fs, content, environment=environment)
 
         return {"action": "re-render"}
 

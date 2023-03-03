@@ -5,7 +5,7 @@ import shutil
 import pytest
 
 from importlib_resources import files
-from airflow_connect.api import hack_manifest, trigger_deploy_or_rerun
+from airflow_connect.api import hack_manifest, trigger_deploy_or_rerun, ConnectDeployError
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
@@ -62,3 +62,21 @@ def test_deploy_or_rerun(fs, notebook, req):
     notebook_name = Path(notebook).with_suffix("").name
     all_notebooks = fs.ls("admin")
     assert f"{notebook_name}1" not in all_notebooks
+
+
+def test_rmd_failing_rerender(fs):
+    report_dir = files("airflow_connect") / "tests" / "rmd_failing_report"
+
+    f_trigger = partial(
+        trigger_deploy_or_rerun,
+        fs,
+        report_dir / "rmd_failing_report.Rmd",
+        requirements_path = report_dir / "manifest.json",
+    )
+    
+    f_trigger(environment = {"SHOULD_SUCCEED": "yes"})
+
+    f_trigger(environment = {"SHOULD_SUCCEED": "yes"})
+
+    with pytest.raises(ConnectDeployError):
+        f_trigger(environment = {"SHOULD_SUCCEED": "no"})

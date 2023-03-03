@@ -1,0 +1,13 @@
+---
+operator: airflow_connect.connect_operator.ConnectOperator
+output:
+  html_document
+---
+
+```{r}
+Sys.getenv("SHOULD_SUCCEED")
+```
+
+```{r}
+stopifnot(Sys.getenv("SHOULD_SUCCEED") == "yes")
+```
